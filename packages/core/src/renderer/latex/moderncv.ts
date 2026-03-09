@@ -22,8 +22,6 @@
  * IN THE SOFTWARE.
  */
 
-import { capitalize } from 'lodash-es'
-
 import type { Parser } from '@/compiler'
 import { MarkdownParser } from '@/compiler'
 import type { LatexLayout, Resume } from '@/models'
@@ -36,14 +34,13 @@ import {
   showIf,
   showIfNotEmpty,
 } from '@/utils'
-import { Renderer } from '../base'
-import { DEFAULT_LINE_SPACING, LINE_SPACING_MAP } from './constants'
+import { LatexRenderer } from './base'
 import { type ModerncvStyle, normalizeUnit } from './preamble'
 
 /**
  * Base class for moderncv renderers.
  */
-class ModerncvBase extends Renderer {
+class ModerncvBase extends LatexRenderer {
   style: ModerncvStyle
 
   /**
@@ -66,23 +63,6 @@ class ModerncvBase extends Renderer {
       layoutIndex
     )
     this.style = style
-  }
-
-  /**
-   * Whether to show icons in the rendered LaTeX.
-   */
-  private get showIcons(): boolean {
-    const layout = this.resume.layouts?.[this.layoutIndex] as LatexLayout
-    return layout?.advanced?.showIcons ?? true
-  }
-
-  /**
-   * Check if the resume is a CJK resume.
-   */
-  private isCJKResume(): boolean {
-    return ['zh-hans', 'zh-hant-hk', 'zh-hant-tw', 'ja'].includes(
-      this.resume.locale?.language
-    )
   }
 
   /**
@@ -186,125 +166,6 @@ class ModerncvBase extends Renderer {
       ],
       '\n'
     )
-  }
-
-  /**
-   * Render the LaTeX packages for CJK support
-   */
-  private renderCTeXConfig(): string {
-    return `%% CTeX
-% CJK support, used to show CJK characters in the resume
-%
-% - fontset=none: disable builtin fontset but instead set the CJK font manually
-% - heading=false: disable ctex heading
-% - punct=kaiming: use kaiming punctuations styles for CJK
-% - scheme=plain: use plain scheme, do not override \`\\normalsize\` font size
-% - space=auto: space settings for CJK characters
-%
-% ref:
-% - http://ctan.mirrorcatalogs.com/language/chinese/ctex/ctex.pdf
-\\usepackage[UTF8, heading=false, punct=kaiming, scheme=plain, space=auto]{ctex}
-
-\\IfFontExistsTF{Noto Serif CJK SC}{
-  \\setCJKmainfont{Noto Serif CJK SC}
-}{}
-\\IfFontExistsTF{Noto Sans CJK SC}{
-  \\setCJKsansfont{Noto Sans CJK SC}
-}{}`
-  }
-
-  /**
-   * Render the LaTeX packages for Spanish support
-   */
-  private renderBabelConfig(): string {
-    switch (this.resume.locale?.language) {
-      case 'es':
-        return `%% Babel config for Spanish language
-% \`\\usepackage[spanish]{babel}\` has some conflicting issues with moderncv
-% so we have to use enable the following options to make it work
-%
-% ref:
-% - https://tex.stackexchange.com/a/140161/36007
-\\usepackage[spanish,es-lcroman]{babel}`
-      case 'fr':
-        return `%% Babel config for French language
-% ref:
-% - https://latex3.github.io/babel/guides/locale-french.html
-\\usepackage[french]{babel}`
-      case 'no':
-        return `%% Babel config for Norwegian language
-% ref:
-% - https://latex3.github.io/babel/guides/locale-norwegian.html
-\\usepackage[norsk]{babel}`
-      case 'nl':
-        return `%% Babel config for Dutch language
-% ref:
-% - https://latex3.github.io/babel/guides/locale-dutch.html
-\\usepackage[dutch]{babel}`
-      case 'de':
-        return `%% Babel config for German language
-% ref:
-% - https://latex3.github.io/babel/guides/locale-german.html
-\\usepackage[ngerman]{babel}`
-      default:
-        return ''
-    }
-  }
-
-  /**
-   * Render the LaTeX packages for Spanish support
-   */
-  private renderFontspecConfig(): string {
-    const layout = this.resume.layouts?.[this.layoutIndex] as LatexLayout
-
-    const numbers = layout.advanced?.fontspec?.numbers
-
-    const linuxLibertineFont = 'Linux Libertine'
-    const linuxLibertineOFont = 'Linux Libertine O'
-
-    const fontFamily = layout.typography?.fontFamily
-    const fonts = fontFamily
-      ?.split(',')
-      .map((font) => font.trim())
-      .filter((font) => font.length > 0)
-    // reverse the fonts so that the first font in the list will be the last one
-    // to be set, so it will be the one used if it exists
-    const fontList = Array.from(
-      new Set([...(fonts ?? []), linuxLibertineOFont, linuxLibertineFont])
-    ).reverse()
-
-    return `%% fontspec
-\\usepackage{fontspec}
-
-${fontList
-  .map(
-    (font) => `\\IfFontExistsTF{${font}}{
-  \\setmainfont[${joinNonEmptyString(
-    [
-      'Ligatures={TeX, Common}',
-      `Numbers=${numbers}`,
-      showIf(this.isCJKResume(), `ItalicFont=${font}`),
-    ],
-    ', '
-  )}]{${font}}
-}{}`
-  )
-  .join('\n')}`
-  }
-
-  /**
-   * Render the line spacing configuration using the setspace package.
-   *
-   * @returns The LaTeX code for line spacing configuration
-   */
-  private renderLineSpacingConfig(): string {
-    const layout = this.resume.layouts?.[this.layoutIndex] as LatexLayout
-    const lineSpacing = layout?.typography?.lineSpacing || DEFAULT_LINE_SPACING
-    const stretchValue = LINE_SPACING_MAP[lineSpacing]
-
-    return `%% line spacing
-\\usepackage{setspace}
-\\setstretch{${stretchValue}}`
   }
 
   /**
@@ -446,24 +307,6 @@ ${fontList
     } = this.resume
 
     return showIfNotEmpty(fullAddress, `\\address{${fullAddress}}{}{}`)
-  }
-
-  /**
-   * Get FontAwesome icon for a network.
-   */
-  private getFaIcon(network: string): string {
-    if (!this.showIcons) {
-      return ''
-    }
-
-    switch (network) {
-      case 'Stack Overflow':
-        return '{\\small \\faStackOverflow}\\ '
-      case 'WeChat':
-        return '{\\small \\faWeixin}\\ '
-      default:
-        return `{\\small \\fa${capitalize(network)}}\\ `
-    }
   }
 
   /**
